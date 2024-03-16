@@ -11,7 +11,7 @@ tab_group = SGui.TabGroup([
         [SGui.Tab("Rossler", create_layout(Layout.Rossler), key=Layout.Rossler)]
     ], expand_x=True)
 
-methods = ["Euler", "Modified Euler", "Euler-Cromer", "Runge-Kutta 5"]
+methods = ["Euler", "Modified Euler", "Euler-Cromer", "Runge-Kutta 5", "Semi-implicit CD"]
 method_key = "Method"
 method_field = SGui.Combo(methods, key=method_key)
 

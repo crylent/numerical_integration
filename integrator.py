@@ -8,6 +8,7 @@ class Method(Enum):
     MODIFIED_EULER = 1
     EULER_CROMER = 2
     RUNGE_KUTTA_5 = 3
+    SEMI_IMPLICIT_CD = 4
 
 
 def euler_step(system, values, h):
@@ -57,6 +58,14 @@ def runge_kutta_5_step(system, values, h):
     values[:] = temp_values[-1][:]
 
 
+def semi_implicit_cd_step(system, values, h):
+    size = len(system)
+    for i in range(size):
+        values[i] += h / 2 * system[i](values)
+    for i in reversed(range(size)):
+        values[i] += h / 2 * system[i](values)
+
+
 def integrator(system, values, t, h, method):
     size = len(system)
     time_history = []
@@ -70,6 +79,7 @@ def integrator(system, values, t, h, method):
             case Method.MODIFIED_EULER: modified_euler_step(system, values, h)
             case Method.EULER_CROMER: euler_cromer_step(system, values, h)
             case Method.RUNGE_KUTTA_5: runge_kutta_5_step(system, values, h)
+            case Method.SEMI_IMPLICIT_CD: semi_implicit_cd_step(system, values, h)
         for i in range(size):
             values_history[i].append(values[i])
     return time_history, values_history

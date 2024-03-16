@@ -1,15 +1,15 @@
 from integrator import run, Method
 from gui import *
 
-
 t_text, t_field = create_field("T")
 h_text, h_field = create_field("h")
 window_text, window_field = create_field("Window")
 
 tab_group = SGui.TabGroup([
-        [SGui.Tab("Van der Pol", create_layout(Layout.Default), key=Layout.Default)],
-        [SGui.Tab("Rossler", create_layout(Layout.Rossler), key=Layout.Rossler)]
-    ], expand_x=True)
+    [SGui.Tab("Van der Pol", create_layout(Layout.VanDerPol), key=Layout.VanDerPol)],
+    [SGui.Tab("Rossler", create_layout(Layout.Rossler), key=Layout.Rossler)],
+    [SGui.Tab("Nose-Hoover", create_layout(Layout.NoseHoover), key=Layout.NoseHoover)]
+], expand_x=True, key="System")
 
 methods = ["Euler", "Modified Euler", "Euler-Cromer", "Runge-Kutta 5", "Semi-implicit CD"]
 method_key = "Method"
@@ -30,10 +30,13 @@ while True:
     elif event == 'Run':
         layout_name = str(tab_group.Get())
         t, h, window = get_float(values, 'T'), get_float(values, 'h'), get_int(values, 'Window')
-        x, y = get_float(values, 'x_' + layout_name), get_float(values, 'y_' + layout_name)
+        x, y, z = get_float(values, 'x_' + layout_name), \
+            get_float(values, 'y_' + layout_name), \
+            get_float(values, 'z_' + layout_name)
+        a, b, c = get_float(values, 'a_' + layout_name), get_float(values, 'b'), get_float(values, 'c')
         app.hide()
         method = Method(methods.index(values[method_key]))
-        if tab_group.Get() == Layout.Default:
+        if values["System"] == Layout.VanDerPol:
             mu = get_float(values, 'μ')
             run(
                 [
@@ -43,13 +46,22 @@ while True:
                 [x, y],
                 t, h, window, method
             )
-        else:
-            a, b, c = get_float(values, 'a'), get_float(values, 'b'), get_float(values, 'c')
+        elif values["System"] == Layout.Rossler:
             run(
                 [
-                   lambda var: -var[1] - var[2],  # -y - z
-                   lambda var: var[0] + a * var[1],  # x + a * y
-                   lambda var: b + var[2] * (var[0] - c)  # b + z * (x - c)
+                    lambda var: -var[1] - var[2],  # -y - z
+                    lambda var: var[0] + a * var[1],  # x + a * y
+                    lambda var: b + var[2] * (var[0] - c)  # b + z * (x - c)
+                ],
+                [x, y, get_float(values, 'z')],
+                t, h, window, method
+            )
+        else:
+            run(
+                [
+                    lambda var: a * var[1],  # ay
+                    lambda var: -var[0] + var[1] * var[2],  # -x + yz
+                    lambda var: 1 - pow(var[1], 2)  # 1 - y^2
                 ],
                 [x, y, get_float(values, 'z')],
                 t, h, window, method

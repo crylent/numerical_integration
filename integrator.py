@@ -1,3 +1,4 @@
+from bifurcation import bifurcation
 from volume import eval_volume
 import matplotlib.pyplot as plt
 from enum import Enum
@@ -11,26 +12,26 @@ class Method(Enum):
     SEMI_IMPLICIT_CD = 4
 
 
-def euler_step(system, values, h):
+def euler_step(system, params, values, h):
     size = len(system)
     temp_values = values.copy()
     for i in range(size):
-        values[i] += system[i](temp_values) * h
+        values[i] += system[i](params, temp_values) * h
 
 
-def modified_euler_step(system, values, h):
+def modified_euler_step(system, params, values, h):
     size = len(system)
     temp_values = []
     for i in range(size):
-        temp_values.append(values[i] + h / 2 * system[i](values))
+        temp_values.append(values[i] + h / 2 * system[i](params, values))
     for i in range(size):
-        values[i] += system[i](temp_values) * h
+        values[i] += system[i](params, temp_values) * h
 
 
-def euler_cromer_step(system, values, h):
+def euler_cromer_step(system, params, values, h):
     size = len(system)
     for i in range(size):
-        values[i] += system[i](values) * h
+        values[i] += system[i](params, values) * h
 
 
 runge_kutta_a = [
@@ -43,7 +44,7 @@ runge_kutta_a = [
 ]
 
 
-def runge_kutta_5_step(system, values, h):
+def runge_kutta_5_step(system, params, values, h):
     size = len(system)
     k = []
     temp_values = [values.copy()]
@@ -51,22 +52,22 @@ def runge_kutta_5_step(system, values, h):
         k.append([])
         temp_values.append(values.copy())
         for i in range(size):
-            k[rk_order].append(system[i](temp_values[rk_order]))
+            k[rk_order].append(system[i](params, temp_values[rk_order]))
         for rk_line in range(rk_order + 1):
             for i in range(size):
                 temp_values[rk_order + 1][i] += h * runge_kutta_a[rk_order][rk_line] * k[rk_order][i]
     values[:] = temp_values[-1][:]
 
 
-def semi_implicit_cd_step(system, values, h):
+def semi_implicit_cd_step(system, params, values, h):
     size = len(system)
     for i in range(size):
-        values[i] += h / 2 * system[i](values)
+        values[i] += h / 2 * system[i](params, values)
     for i in reversed(range(size)):
-        values[i] += h / 2 * system[i](values)
+        values[i] += h / 2 * system[i](params, values)
 
 
-def integrator(system, values, t, h, method):
+def integrator(system, params, values, t, h, method):
     size = len(system)
     time_history = []
     values_history = []
@@ -75,34 +76,53 @@ def integrator(system, values, t, h, method):
     for step in range(0, int(t / h)):
         time_history.append(step * h)
         match method:
-            case Method.EULER: euler_step(system, values, h)
-            case Method.MODIFIED_EULER: modified_euler_step(system, values, h)
-            case Method.EULER_CROMER: euler_cromer_step(system, values, h)
-            case Method.RUNGE_KUTTA_5: runge_kutta_5_step(system, values, h)
-            case Method.SEMI_IMPLICIT_CD: semi_implicit_cd_step(system, values, h)
+            case Method.EULER: euler_step(system, params, values, h)
+            case Method.MODIFIED_EULER: modified_euler_step(system, params, values, h)
+            case Method.EULER_CROMER: euler_cromer_step(system, params, values, h)
+            case Method.RUNGE_KUTTA_5: runge_kutta_5_step(system, params, values, h)
+            case Method.SEMI_IMPLICIT_CD: semi_implicit_cd_step(system, params, values, h)
         for i in range(size):
             values_history[i].append(values[i])
     return time_history, values_history
 
 
-def run(system, initial_values, t, h, window, method):
-    time_history, values_history = integrator(system, initial_values, t, h, method)
-    steps_history, volume_history = eval_volume(values_history, window)
+def run(system, params, initial_values, t, h, window, method, bif, time_series, phase_portrait):
+    time_history, values_history = integrator(system, params, initial_values, t, h, method)
     size = len(initial_values)
 
-    plt.title("Time-Series Plot")
-    for i in range(size):
-        plt.plot(time_history, values_history[i])
-    plt.show()
+    if time_series:
+        plt.title("Time-Series Plot")
+        for i in range(size):
+            plt.plot(time_history, values_history[i])
+        plt.show()
 
-    plt.title("Phase Portrait")
-    if size == 3:
-        ax = plt.axes(projection='3d')
-        ax.plot3D(*values_history)
-    else:
-        plt.plot(*values_history)
-    plt.show()
+    if phase_portrait:
+        plt.title("Phase Portrait")
+        if size == 3:
+            ax = plt.axes(projection='3d')
+            ax.plot3D(*values_history)
+        else:
+            plt.plot(*values_history)
+        plt.show()
 
-    plt.title("Volume Dynamics")
-    plt.plot(steps_history, volume_history)
-    plt.show()
+    if window is not None:
+        steps_history, volume_history = eval_volume(values_history, window)
+        plt.title("Volume Dynamics")
+        plt.plot(steps_history, volume_history)
+        plt.show()
+
+    if bif is None:
+        return
+
+    bif_target_params, bif_max_values, bif_target_var = bif
+    for i in range(len(bif_target_params)):
+        param = bif_target_params[i]
+        val = bif_max_values[i]
+        param_history, peaks_history = bifurcation(
+            lambda bif_params: integrator(system, bif_params, initial_values, t, h, method),
+            params, param, val, bif_target_var
+        )
+        plt.title("Bifurcation Diagram: " + str(param) + " " + str(bif_target_var))
+        plt.scatter(param_history, peaks_history, 1)
+        plt.show()
+

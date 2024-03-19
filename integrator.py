@@ -1,3 +1,5 @@
+import math
+
 from bifurcation import bifurcation
 from volume import eval_volume
 import matplotlib.pyplot as plt
@@ -67,27 +69,56 @@ def semi_implicit_cd_step(system, params, values, h):
         values[i] += h / 2 * system[i](params, values)
 
 
-def integrator(system, params, values, t, h, method):
+def integration_step(system, params, values, h, method):
+    match method:
+        case Method.EULER:
+            euler_step(system, params, values, h)
+        case Method.MODIFIED_EULER:
+            modified_euler_step(system, params, values, h)
+        case Method.EULER_CROMER:
+            euler_cromer_step(system, params, values, h)
+        case Method.RUNGE_KUTTA_5:
+            runge_kutta_5_step(system, params, values, h)
+        case Method.SEMI_IMPLICIT_CD:
+            semi_implicit_cd_step(system, params, values, h)
+
+
+def distance(a, b):
+    sqr_dist = .0
+    for i in range(len(a)):
+        sqr_dist += pow(a[i] - b[i], 2)
+    return math.sqrt(sqr_dist)
+
+
+def integrator(system, params, values, t, h, method, lyapunov_steps=100):
     size = len(system)
     time_history = []
     values_history = []
+    lyapunov_shift = 0.001
+    lyapunov_values = []
+    for i in range(size):
+        lyapunov_values.append(values[:])
+        lyapunov_values[i][i] += lyapunov_shift
+        for step in range(lyapunov_steps):
+            integration_step(system, params, lyapunov_values[i], h, method)
     for i in range(size):
         values_history.append([])
     for step in range(0, int(t / h)):
         time_history.append(step * h)
-        match method:
-            case Method.EULER: euler_step(system, params, values, h)
-            case Method.MODIFIED_EULER: modified_euler_step(system, params, values, h)
-            case Method.EULER_CROMER: euler_cromer_step(system, params, values, h)
-            case Method.RUNGE_KUTTA_5: runge_kutta_5_step(system, params, values, h)
-            case Method.SEMI_IMPLICIT_CD: semi_implicit_cd_step(system, params, values, h)
+        integration_step(system, params, values, h, method)
         for i in range(size):
             values_history[i].append(values[i])
-    return time_history, values_history
+    max_lyapunov = .0
+    values_history_zip = list(zip(*values_history))
+    for i in range(size):
+        lyapunov = distance(lyapunov_values[i], values_history_zip[lyapunov_steps - 1]) / lyapunov_shift
+        if lyapunov > max_lyapunov:
+            max_lyapunov = lyapunov
+    return time_history, values_history, max_lyapunov
 
 
 def run(system, params, initial_values, t, h, window, method, bif, time_series, phase_portrait):
-    time_history, values_history = integrator(system, params, initial_values, t, h, method)
+    time_history, values_history, max_lyapunov = integrator(system, params, initial_values, t, h, method)
     size = len(initial_values)
 
     if time_series:
@@ -114,15 +145,17 @@ def run(system, params, initial_values, t, h, window, method, bif, time_series, 
     if bif is None:
         return
 
-    bif_target_params, bif_max_values, bif_target_var = bif
+    bif_target_params, bif_max_values, bif_target_var, bif_step, bif_threshold, lyapunov_steps = bif
     for i in range(len(bif_target_params)):
         param = bif_target_params[i]
         val = bif_max_values[i]
-        param_history, peaks_history = bifurcation(
-            lambda bif_params: integrator(system, bif_params, initial_values, t, h, method),
-            params, param, val, bif_target_var
+        param_history_for_peaks, peaks_history, param_history_for_lyapunov, lyapunov_history = bifurcation(
+            lambda bif_params: integrator(system, bif_params, initial_values, t, h, method, lyapunov_steps),
+            params, param, val, bif_target_var, bif_step, bif_threshold
         )
-        plt.title("Bifurcation Diagram: " + str(param) + " " + str(bif_target_var))
-        plt.scatter(param_history, peaks_history, 1)
+        fig, ax1 = plt.subplots()
+        ax2 = ax1.twinx()
+        ax1.scatter(param_history_for_peaks, peaks_history, 1)
+        ax2.plot(param_history_for_lyapunov, lyapunov_history, color='r')
+        plt.title("Bifurcation Diagram: " + str(param) + " " + str(bif_target_var) + " / Max Lyapunov Exponent")
         plt.show()
-

@@ -34,10 +34,13 @@ bif_var_key = "Bif_Var"
 bif_var_text, bif_var_field = create_combo("Bif. var.", bif_vars, bif_var_key)
 
 bif_step_key = "Bif_Step"
-bif_step_text, bif_step_field = create_field("Bif. param. step", 0.0002, bif_step_key)
+bif_step_text, bif_step_field = create_field("Bif. param. step", 0.002, bif_step_key)
 
 bif_threshold_key = "Bif_Threshold"
 bif_threshold_text, bif_threshold_field = create_field("Bif. threshold", 0.3, bif_threshold_key)
+
+lyapunov_steps_key = "Bif_LyapunovSteps"
+lyapunov_steps_text, lyapunov_steps_field = create_field("Lyapunov steps", 100, lyapunov_steps_key)
 
 time_series_key = "TimeSeries"
 phase_portrait_key = "PhasePortrait"
@@ -48,6 +51,7 @@ bifurcation_panel = [
     [bif_var_text, bif_var_field],
     [bif_step_text, bif_step_field],
     [bif_threshold_text, bif_threshold_field],
+    [lyapunov_steps_text, lyapunov_steps_field]
 ]
 bif_section_key = "Bif_section"
 volume_section_key = "Volume_section"
@@ -58,10 +62,10 @@ layout = [
     [method_text, method_field],
     [SGui.Checkbox("Time-Series", True, key=time_series_key)],
     [SGui.Checkbox("Phase Portrait", True, key=phase_portrait_key)],
-    [SGui.Checkbox("Bifurcation", True, key=bifurcation_key, enable_events=True)],
-    [collapse(bifurcation_panel, bif_section_key)],
     [SGui.Checkbox("Volume", True, key=volume_key, enable_events=True)],
     [collapse([[window_text, window_field]], volume_section_key)],
+    [SGui.Checkbox("Bifurcation & Lyapunov Exponent", True, key=bifurcation_key, enable_events=True)],
+    [collapse(bifurcation_panel, bif_section_key)],
     [SGui.OK("Run", expand_x=True)]
 ]
 app = SGui.Window("Numerical Integrator", layout)
@@ -107,9 +111,12 @@ while True:
             bif_target_params.append(Param.C)
             bif_max_values.append(c2)
         bif_var = Var(bif_vars.index(values[bif_var_key]))
+        bif_step = get_float(values, bif_step_key)
+        bif_threshold = get_float(values, bif_threshold_key)
+        lyapunov_steps = get_int(values, lyapunov_steps_key)
         app.hide()
         method = Method(methods.index(values[method_key]))
-        bif = (bif_target_params, bif_max_values, bif_var)
+        bif = (bif_target_params, bif_max_values, bif_var, bif_step, bif_threshold, lyapunov_steps)
         if not enable_bifurcation:
             bif = None
         if values["System"] == Layout.VanDerPol:

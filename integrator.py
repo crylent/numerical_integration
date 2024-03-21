@@ -114,7 +114,7 @@ def integrator(system, params, values, t, h, method, lyapunov_steps=100):
         lyapunov = distance(lyapunov_values[i], values_history_zip[lyapunov_steps - 1]) / lyapunov_shift
         if lyapunov > max_lyapunov:
             max_lyapunov = lyapunov
-    return time_history, values_history, max_lyapunov
+    return time_history, values_history, math.log(max_lyapunov) / (h * lyapunov_steps)
 
 
 def run(system, params, initial_values, t, h, window, method, bif, time_series, phase_portrait):
@@ -157,5 +157,6 @@ def run(system, params, initial_values, t, h, window, method, bif, time_series, 
         ax2 = ax1.twinx()
         ax1.scatter(param_history_for_peaks, peaks_history, 1)
         ax2.plot(param_history_for_lyapunov, lyapunov_history, color='r')
-        plt.title("Bifurcation Diagram: " + str(param) + " " + str(bif_target_var) + " / Max Lyapunov Exponent")
+        plt.title("Bifurcation Diagram (param=" + param.name
+                  + ", var=" + bif_target_var.name + ") / Max Lyapunov Exponent")
         plt.show()

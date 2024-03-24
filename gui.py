@@ -24,6 +24,7 @@ class Layout(enum.Enum):
     VanDerPol = 1
     Rossler = 2
     NoseHoover = 3
+    Lorens = 4
 
 
 def create_layout(selected_layout):
@@ -55,6 +56,39 @@ def create_layout(selected_layout):
         [x_text, x_field, a_text, a_field, a2_field],
         [y_text, y_field, b_text, b_field, b2_field],
         [z_text, z_field, c_text, c_field, c2_field]
+    ]
+
+
+def create_sync_layout(selected_layout):
+    layout_name = str(selected_layout)
+    x_text, x_field, x2_field = create_field("x", 1, "x_" + layout_name, True)
+    y_text, y_field, y2_field = create_field("y", 1, "y_" + layout_name, True)
+    z_text, z_field, z2_field = create_field("z", 1, "z_" + layout_name, True)
+    a_text, a_field = create_field("a", 0.2, "a_" + layout_name)
+    b_text, b_field = create_field("b", 0.2)
+    c_default = 0
+    if selected_layout == Layout.Rossler:
+        c_default = 5.7
+    c_text, c_field = create_field("c", c_default, "c_" + layout_name)
+    sigma_text, sigma_field = create_field("σ", 10)
+    ro_text, ro_field = create_field("ρ", 28)
+    beta_text, beta_field = create_field("β", 2.67)
+    if selected_layout == Layout.NoseHoover:
+        return [
+            [x_text, x_field, x2_field, a_text, a_field],
+            [y_text, y_field, y2_field, c_text, c_field],
+            [z_text, z_field, z2_field]
+        ]
+    if selected_layout == Layout.Lorens:
+        return [
+            [x_text, x_field, x2_field, sigma_text, sigma_field],
+            [y_text, y_field, y2_field, ro_text, ro_field],
+            [z_text, z_field, z2_field, beta_text, beta_field]
+        ]
+    return [  # Rossler
+        [x_text, x_field, x2_field, a_text, a_field],
+        [y_text, y_field, y2_field, b_text, b_field],
+        [z_text, z_field, z2_field, c_text, c_field]
     ]
 
 

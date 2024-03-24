@@ -1,17 +1,4 @@
-from enum import IntEnum
 from scipy.signal import find_peaks
-
-
-class Param(IntEnum):
-    A = 0
-    B = 1
-    C = 2
-
-
-class Var(IntEnum):
-    X = 0
-    Y = 1
-    Z = 2
 
 
 def bifurcation(integrator, params, target_param, max_value, target_var, step, threshold):

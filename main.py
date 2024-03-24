@@ -1,4 +1,4 @@
-from bifurcation import Param, Var
+from enums import Param, Var
 from integrator import run, Method
 from gui import *
 
@@ -119,6 +119,7 @@ while True:
         bif = (bif_target_params, bif_max_values, bif_var, bif_step, bif_threshold, lyapunov_steps)
         if not enable_bifurcation:
             bif = None
+            lyapunov_steps = 0
         if values["System"] == Layout.VanDerPol:
             mu = get_float(values, 'μ')
             run(
@@ -139,7 +140,7 @@ while True:
                     lambda param, var: param[1] + var[2] * (var[0] - param[2])  # b + z * (x - c)
                 ],
                 [a, b, c],
-                [x, y, get_float(values, 'z')],
+                [x, y, z],
                 t, h, window, method, bif,
                 time_series, phase_portrait
             )
@@ -151,7 +152,7 @@ while True:
                     lambda param, var: 1 - pow(var[1], 2)  # 1 - y^2
                 ],
                 [a, None, c],
-                [x, y, get_float(values, 'z')],
+                [x, y, z],
                 t, h, window, method, bif,
                 time_series, phase_portrait
             )

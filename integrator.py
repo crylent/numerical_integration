@@ -19,6 +19,8 @@ def euler_step(system, params, values, h):
     temp_values = values.copy()
     for i in range(size):
         values[i] += system[i](params, temp_values) * h
+        # if i == sync_var:
+        #    values[i] += sync_fi * ()
 
 
 def modified_euler_step(system, params, values, h):
@@ -69,7 +71,10 @@ def semi_implicit_cd_step(system, params, values, h):
         values[i] += h / 2 * system[i](params, values)
 
 
-def integration_step(system, params, values, h, method):
+def integration_step(system, params, values, h, method, sync_var=None, sync_val=None, sync_k=1):
+    sync_fi = 0
+    if sync_var:
+        sync_fi = sync_k * (sync_val - values[sync_var])
     match method:
         case Method.EULER:
             euler_step(system, params, values, h)
@@ -81,6 +86,8 @@ def integration_step(system, params, values, h, method):
             runge_kutta_5_step(system, params, values, h)
         case Method.SEMI_IMPLICIT_CD:
             semi_implicit_cd_step(system, params, values, h)
+    if sync_var:
+        values[sync_var] += sync_fi
 
 
 def distance(a, b):
@@ -90,41 +97,57 @@ def distance(a, b):
     return math.sqrt(sqr_dist)
 
 
-def integrator(system, params, values, t, h, method, lyapunov_steps=100):
+def integrator(system, params, values, t, h, method, sync_var=None, sync_values=None, sync_k=1, lyapunov_steps=0):
     size = len(system)
     time_history = []
     values_history = []
     lyapunov_shift = 0.001
     lyapunov_values = []
-    for i in range(size):
-        lyapunov_values.append(values[:])
-        lyapunov_values[i][i] += lyapunov_shift
-        for step in range(lyapunov_steps):
-            integration_step(system, params, lyapunov_values[i], h, method)
+    if lyapunov_steps > 0:
+        for i in range(size):
+            lyapunov_values.append(values[:])
+            lyapunov_values[i][i] += lyapunov_shift
+            for step in range(lyapunov_steps):
+                integration_step(system, params, lyapunov_values[i], h, method)
     for i in range(size):
         values_history.append([])
     for step in range(0, int(t / h)):
         time_history.append(step * h)
-        integration_step(system, params, values, h, method)
+        if sync_var is None:
+            integration_step(system, params, values, h, method)
+        else:
+            integration_step(system, params, values, h, method, sync_var, sync_values[step], sync_k)
         for i in range(size):
             values_history[i].append(values[i])
     max_lyapunov = .0
-    values_history_zip = list(zip(*values_history))
-    for i in range(size):
-        lyapunov = distance(lyapunov_values[i], values_history_zip[lyapunov_steps - 1]) / lyapunov_shift
-        if lyapunov > max_lyapunov:
-            max_lyapunov = lyapunov
-    return time_history, values_history, math.log(max_lyapunov) / (h * lyapunov_steps)
+    if lyapunov_steps > 0:
+        values_history_zip = list(zip(*values_history))
+        for i in range(size):
+            lyapunov = distance(lyapunov_values[i], values_history_zip[lyapunov_steps - 1]) / lyapunov_shift
+            if lyapunov > max_lyapunov:
+                max_lyapunov = lyapunov
+        max_lyapunov = math.log(max_lyapunov) / (h * lyapunov_steps)
+    return time_history, values_history, max_lyapunov
 
 
-def run(system, params, initial_values, t, h, window, method, bif, time_series, phase_portrait):
+def run(system, params, initial_values, t, h, window, method, bif, time_series, phase_portrait, sync=None):
     time_history, values_history, max_lyapunov = integrator(system, params, initial_values, t, h, method)
+    slave_history = []
+    enable_sync_error = False
+    if sync:
+        slave_method, slave_init_values, sync_var, sync_k, enable_sync_error = sync
+        sync_values = values_history[sync_var]
+        _, slave_history, _ = integrator(
+            system, params, slave_init_values, t, h, slave_method, sync_var, sync_values, sync_k
+        )
     size = len(initial_values)
 
     if time_series:
         plt.title("Time-Series Plot")
         for i in range(size):
             plt.plot(time_history, values_history[i])
+            if sync:
+                plt.plot(time_history, slave_history[i])
         plt.show()
 
     if phase_portrait:
@@ -132,6 +155,8 @@ def run(system, params, initial_values, t, h, window, method, bif, time_series, 
         if size == 3:
             ax = plt.axes(projection='3d')
             ax.plot3D(*values_history)
+            if sync:
+                ax.plot3D(*slave_history)
         else:
             plt.plot(*values_history)
         plt.show()
@@ -142,15 +167,24 @@ def run(system, params, initial_values, t, h, window, method, bif, time_series, 
         plt.plot(steps_history, volume_history)
         plt.show()
 
+    if enable_sync_error:
+        plt.title("Synchronization Error")
+        for i in range(size):
+            error_history = []
+            for step in range(len(time_history)):
+                error_history.append(slave_history[i][step] - values_history[i][step])
+            plt.plot(time_history, error_history)
+        plt.show()
+
     if bif is None:
         return
 
-    bif_target_params, bif_max_values, bif_target_var, bif_step, bif_threshold, lyapunov_steps = bif
+    bif_target_params, bif_max_values, bif_target_var, bif_step, bif_threshold, l_steps = bif
     for i in range(len(bif_target_params)):
         param = bif_target_params[i]
         val = bif_max_values[i]
         param_history_for_peaks, peaks_history, param_history_for_lyapunov, lyapunov_history = bifurcation(
-            lambda bif_params: integrator(system, bif_params, initial_values, t, h, method, lyapunov_steps),
+            lambda bif_params: integrator(system, bif_params, initial_values, t, h, method, lyapunov_steps=l_steps),
             params, param, val, bif_target_var, bif_step, bif_threshold
         )
         fig, ax1 = plt.subplots()
